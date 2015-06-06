@@ -158,16 +158,16 @@ class AuthHandler(BaseRequestHandler, SimpleAuthHandler):
      auth_info contains access token or oauth token and secret.
      extra is a dict with additional params passed to the auth init handler.
     """
-    logging.debug('Got user data: %s', data)
+    logging.info('Got user data: %s', data)
 
     auth_id = '%s:%s' % (provider, data['id'])
 
-    logging.debug('Looking for a user with id %s', auth_id)
+    logging.info('Looking for a user with id %s', auth_id)
     user = self.auth.store.user_model.get_by_auth_id(auth_id)
     _attrs = self._to_user_model_attrs(data, self.USER_ATTRS[provider])
 
     if user:
-      logging.debug('Found existing user to log in')
+      logging.info('Found existing user to log in')
       # Existing users might've changed their profile data so we update our
       # local model anyway. This might result in quite inefficient usage
       # of the Datastore, but we do this anyway for demo purposes.
@@ -184,7 +184,7 @@ class AuthHandler(BaseRequestHandler, SimpleAuthHandler):
       # otherwise add this auth_id to currently logged in user.
 
       if self.logged_in:
-        logging.debug('Updating currently logged in user')
+        logging.info('Updating currently logged in user')
 
         u = self.current_user
         u.populate(**_attrs)
@@ -195,7 +195,7 @@ class AuthHandler(BaseRequestHandler, SimpleAuthHandler):
         u.add_auth_id(auth_id)
 
       else:
-        logging.debug('Creating a brand new user')
+        logging.info('Creating a brand new user')
         ok, user = self.auth.store.user_model.create_user(auth_id, **_attrs)
         if ok:
           self.auth.set_session(self.auth.store.user_to_dict(user))
