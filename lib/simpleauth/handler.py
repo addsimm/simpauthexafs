@@ -91,23 +91,6 @@ class SimpleAuthHandler(object):
     'facebook': (OAUTH2,
                  'https://www.facebook.com/dialog/oauth?{0}',
                  'https://graph.facebook.com/oauth/access_token'),
-    'linkedin2': (OAUTH2,
-                  'https://www.linkedin.com/uas/oauth2/authorization?{0}',
-                  'https://www.linkedin.com/uas/oauth2/accessToken'),
-    'foursquare': (OAUTH2,
-                   'https://foursquare.com/oauth2/authenticate?{0}',
-                   'https://foursquare.com/oauth2/access_token'),
-
-    # OAuth 1.0a providers
-    'linkedin': (OAUTH1, {
-        'request': 'https://api.linkedin.com/uas/oauth/requestToken',
-        'auth': 'https://www.linkedin.com/uas/oauth/authenticate?{0}'
-      }, 'https://api.linkedin.com/uas/oauth/accessToken'),
-    'twitter': (OAUTH1, {
-         'request': 'https://api.twitter.com/oauth/request_token',
-         'auth': 'https://api.twitter.com/oauth/authenticate?{0}'
-      }, 'https://api.twitter.com/oauth/access_token'),
-
     # OpenID
     'openid': ('openid', None)
   }
@@ -117,11 +100,7 @@ class SimpleAuthHandler(object):
     'google': '_json_parser',
     'googleplus': '_json_parser',
     'windows_live': '_json_parser',
-    'foursquare': '_json_parser',
-    'facebook': '_query_string_parser',
-    'linkedin': '_query_string_parser',
-    'linkedin2': '_json_parser',
-    'twitter': '_query_string_parser'
+    'facebook': '_query_string_parser'
   }
 
   # Set this to True in your handler if you want to use
@@ -231,7 +210,7 @@ class SimpleAuthHandler(object):
       params.update(state=json.dumps(state_params))
 
     target_url = auth_url.format(urlencode(params))
-    logging.info('Redirecting user to %s', target_url)
+    logging.warning('Redirecting user to %s', target_url)
 
     self.redirect(target_url)
 
@@ -246,7 +225,7 @@ class SimpleAuthHandler(object):
     client_id, client_secret, scope = self._get_consumer_info_for(provider)
 
     json_state = self.request.get('state')
-    logging.info(json_state)
+    logging.warning(json_state)
     state = json.loads(json_state)
 
     if self.OAUTH2_CSRF_STATE:
@@ -280,70 +259,6 @@ class SimpleAuthHandler(object):
     user_data = _fetcher(auth_info, key=client_id, secret=client_secret)
     return user_data, auth_info, extra
 
-  def _oauth1_init(self, provider, auth_urls, extra=None):
-    """Initiates OAuth 1.0 dance"""
-    key, secret = self._get_consumer_info_for(provider)
-    callback_url = self._callback_uri_for(provider)
-    optional_params = self._get_optional_params_for(provider)
-    token_request_url = auth_urls.get('request', None)
-    auth_url = auth_urls.get('auth', None)
-    _parser = getattr(self, self.TOKEN_RESPONSE_PARSERS[provider], None)
-
-    # make a request_token request
-    client = self._oauth1_client(consumer_key=key, consumer_secret=secret)
-    body = urlencode({'oauth_callback': callback_url})
-    resp, content = client.request(auth_urls['request'], "POST", body)
-
-    if resp.status != 200:
-      raise AuthProviderResponseError(
-          '%s (status: %d)' % (content, resp.status), provider)
-
-    # parse token request response
-    request_token = _parser(content)
-    if not request_token.get('oauth_token', None):
-      raise AuthProviderResponseError(
-          "Couldn't get a request token from %s" % str(request_token), provider)
-
-    params = {
-      'oauth_token': request_token.get('oauth_token', None),
-      'oauth_callback': callback_url
-    }
-    if isinstance(optional_params, dict):
-      params.update(optional_params)
-    target_url = auth_urls['auth'].format(urlencode(params))
-
-    logging.info('Redirecting user to %s', target_url)
-
-    # save request token for later, the callback
-    self.session['req_token'] = request_token
-    self.redirect(target_url)
-
-  def _oauth1_callback(self, provider, access_token_url):
-    """Third step of OAuth 1.0 dance."""
-    request_token = self.session.pop('req_token', None)
-    if not request_token:
-      raise InvalidOAuthRequestToken(
-          "No request token in user session", provider)
-
-    verifier = self.request.get('oauth_verifier')
-    if not verifier:
-      raise AuthProviderResponseError(
-          "No OAuth verifier was provided", provider)
-
-    consumer_key, consumer_secret = self._get_consumer_info_for(provider)
-    token = oauth1.Token(request_token['oauth_token'],
-                         request_token['oauth_token_secret'])
-    token.set_verifier(verifier)
-    client = self._oauth1_client(token, consumer_key, consumer_secret)
-    resp, content = client.request(access_token_url, "POST")
-
-    _parser = getattr(self, self.TOKEN_RESPONSE_PARSERS[provider])
-    _fetcher = getattr(self, '_get_%s_user_info' % provider)
-
-    auth_info = _parser(content)
-    user_data = _fetcher(auth_info, key=consumer_key, secret=consumer_secret)
-    return (user_data, auth_info)
-
   def _openid_init(self, provider='openid', identity=None, extra=None):
     """Initiates OpenID dance using App Engine users module API."""
     identity_url = identity or self.request.get('identity_url')
@@ -351,7 +266,7 @@ class SimpleAuthHandler(object):
 
     target_url = users.create_login_url(
         dest_url=callback_url, federated_identity=identity_url)
-    logging.info('Redirecting user to %s', target_url)
+    logging.warning('Redirecting user to %s', target_url)
     self.redirect(target_url)
 
   def _openid_callback(self, provider='openid', _identity=None):
@@ -391,9 +306,6 @@ class SimpleAuthHandler(object):
 
     For OAuth 2.0 it should be a 3 elements tuple:
     (client_ID, client_secret, scopes)
-
-    OAuth 1.0 doesn't have scope so this should return just a
-    (consumer_key, consumer_secret) tuple.
 
     OpenID needs neither scope nor key/secret, so this method is never called
     for OpenID authentication.
@@ -466,60 +378,6 @@ class SimpleAuthHandler(object):
                                 auth_info['access_token'])
     return json.loads(resp)
 
-  def _get_foursquare_user_info(self, auth_info, key=None, secret=None):
-    """Returns a dict of currenly logging in user.
-    foursquare API endpoint:
-    https://api.foursquare.com/v2/users/self
-    """
-    resp = self._oauth2_request(
-        'https://api.foursquare.com/v2/users/self?{0}&v=20130204',
-        auth_info['access_token'],'oauth_token')
-    data = json.loads(resp)
-    if data['meta']['code'] != 200:
-      logging.error(data['meta']['errorDetail'])
-    return data['response'].get('user')
-
-  def _get_linkedin_user_info(self, auth_info, key=None, secret=None):
-    """Returns a dict of currently logging in linkedin user.
-
-    LinkedIn user profile API endpoint:
-    http://api.linkedin.com/v1/people/~
-    or
-    http://api.linkedin.com/v1/people/~:<fields>
-    where <fields> is something like
-    (id,first-name,last-name,picture-url,public-profile-url,headline)
-
-    LinkedIn OAuth 1.0a is deprecated. Use LinkedIn with OAuth 2.0
-    """
-    # TODO: remove LinkedIn OAuth 1.0a in the next release.
-    logging.warn('LinkedIn OAuth 1.0a is deprecated. '
-                 'Use LinkedIn with OAuth 2.0: '
-                 'https://developer.linkedin.com/documents/authentication')
-    token = oauth1.Token(key=auth_info['oauth_token'],
-                         secret=auth_info['oauth_token_secret'])
-    client = self._oauth1_client(token, key, secret)
-
-    fields = 'id,first-name,last-name,picture-url,public-profile-url,headline'
-    url = 'http://api.linkedin.com/v1/people/~:(%s)' % fields
-    resp, content = client.request(url)
-    return self._parse_xml_user_info(content)
-
-  def _get_linkedin2_user_info(self, auth_info, key=None, secret=None):
-    """Returns a dict of currently logging in linkedin user.
-
-    LinkedIn user profile API endpoint:
-    http://api.linkedin.com/v1/people/~
-    or
-    http://api.linkedin.com/v1/people/~:<fields>
-    where <fields> is something like
-    (id,first-name,last-name,picture-url,public-profile-url,headline)
-    """
-    fields = 'id,first-name,last-name,picture-url,public-profile-url,headline'
-    url = 'https://api.linkedin.com/v1/people/~:(%s)?{0}' % fields
-    resp = self._oauth2_request(url, auth_info['access_token'],
-                                token_param='oauth2_access_token')
-    return self._parse_xml_user_info(resp)
-
   def _parse_xml_user_info(self, content):
     try:
       # lxml is one of the third party libs available on App Engine out of the
@@ -533,32 +391,9 @@ class SimpleAuthHandler(object):
       uinfo.setdefault(e.tag, e.text)
     return uinfo
 
-  def _get_twitter_user_info(self, auth_info, key=None, secret=None):
-    """Returns a dict of twitter user using
-    https://api.twitter.com/1.1/account/verify_credentials.json
-    """
-    token = oauth1.Token(key=auth_info['oauth_token'],
-                         secret=auth_info['oauth_token_secret'])
-    client = self._oauth1_client(token, key, secret)
-
-    resp, content = client.request(
-        'https://api.twitter.com/1.1/account/verify_credentials.json')
-    uinfo = json.loads(content)
-    uinfo.setdefault('link', 'http://twitter.com/%s' % uinfo['screen_name'])
-    return uinfo
-
   #
   # aux methods
   #
-
-  def _oauth1_client(self, token=None, consumer_key=None,
-                     consumer_secret=None):
-    """Returns OAuth 1.0 client that is capable of signing requests."""
-    args = [oauth1.Consumer(key=consumer_key, secret=consumer_secret)]
-    if token:
-      args.append(token)
-
-    return oauth1.Client(*args)
 
   def _oauth2_request(self, url, token, token_param='access_token'):
     """Makes an HTTP request with OAuth 2.0 access token using App Engine

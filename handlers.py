@@ -117,34 +117,6 @@ class AuthHandler(BaseRequestHandler, SimpleAuthHandler):
       'displayName': 'name',
       'url': 'link'
     },
-    'windows_live': {
-      'avatar_url': 'avatar_url',
-      'name': 'name',
-      'link': 'link'
-    },
-    'twitter': {
-      'profile_image_url': 'avatar_url',
-      'screen_name': 'name',
-      'link': 'link'
-    },
-    'linkedin': {
-      'picture-url': 'avatar_url',
-      'first-name': 'name',
-      'public-profile-url': 'link'
-    },
-    'linkedin2': {
-      'picture-url': 'avatar_url',
-      'first-name': 'name',
-      'public-profile-url': 'link'
-    },
-    'foursquare': {
-      'photo': lambda photo: ('avatar_url', photo.get('prefix') + '100x100'\
-                                          + photo.get('suffix')),
-      'firstName': 'firstName',
-      'lastName': 'lastName',
-      'contact': lambda contact: ('email', contact.get('email')),
-      'id': lambda id: ('link', FOURSQUARE_USER_LINK.format(id))
-    },
     'openid': {
       'id': lambda id: ('avatar_url', DEFAULT_AVATAR_URL),
       'nickname': 'name',
