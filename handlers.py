@@ -94,6 +94,11 @@ class ProfileHandler(BaseRequestHandler):
     else:
       self.redirect('/')
 
+class LogoutHandler(BaseRequestHandler):
+    def get(self):
+        self.auth.unset_session()
+        self.redirect('/')
+
 
 class AuthHandler(BaseRequestHandler, SimpleAuthHandler):
   """Authentication handler for OAuth 2.0, 1.0(a) and OpenID."""
@@ -175,6 +180,7 @@ class AuthHandler(BaseRequestHandler, SimpleAuthHandler):
     # Remember auth data during redirect, just for this demo. You wouldn't
     # normally do this.
     self.session.add_flash(auth_info, 'auth_info')
+    self.session.add_flash(_attrs, 'user_attrs')
     self.session.add_flash({'extra': extra}, 'extra')
 
     # user profile page
@@ -183,10 +189,6 @@ class AuthHandler(BaseRequestHandler, SimpleAuthHandler):
       params = webob.multidict.MultiDict(extra)
       destination_url = str(params.get('destination_url', '/profile'))
     return self.redirect(destination_url)
-
-  def logout(self):
-    self.auth.unset_session()
-    self.redirect('/')
 
   def handle_exception(self, exception, debug):
     logging.error(exception)
